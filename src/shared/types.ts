@@ -28,7 +28,7 @@ export interface DshConfig {
   };
 }
 
-export type BrainType = 'local' | 'cloud' | 'gpu' | 'nim';
+export type BrainType = 'local' | 'cloud' | 'gpu' | 'nim' | 'nim-local' | 'runai';
 
 export interface RoutingRequest {
   input: string;
@@ -43,6 +43,7 @@ export interface RoutingDecision {
 
 export interface TaskResult {
   brain: BrainType;
+  model?: string;
   output: string;
   tokensUsed?: number;
   latencyMs?: number;

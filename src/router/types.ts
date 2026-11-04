@@ -50,6 +50,12 @@ export interface RouterConfig {
     timeoutMs: number;
     maxRetries: number;
   };
+  gpu: {
+    baseUrl: string;
+    token: string;
+    agentPool: string;
+    agentImage: string;
+  };
   thresholds: {
     complexityScore: {
       low: number;
@@ -90,6 +96,12 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
     },
     timeoutMs: 30000,
     maxRetries: 3,
+  },
+  gpu: {
+    baseUrl: 'http://localhost:8000',
+    token: '',
+    agentPool: 'h100',
+    agentImage: 'nvcr.io/nvidia/doca/doca:2.7.0',
   },
   thresholds: {
     complexityScore: {
