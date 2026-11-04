@@ -1,0 +1,27 @@
+{
+  "name": "@brainsait/superagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "src/web"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node --import tsx/dist/cli.mjs src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "check": "tsc --noEmit && eslint src/",
+    "lint": "eslint src/",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.4.0",
+    "@types/node": "^22.0.0"
+  }
+}
