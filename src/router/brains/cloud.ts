@@ -1,6 +1,6 @@
-import type { RoutingDecision, RoutingRequest, TaskResult } from '../shared/types.js';
-import { BrainBase } from '../router/brain-base.js';
-import type { RouterConfig } from '../router/types.js';
+import type { RoutingDecision, RoutingRequest, TaskResult } from '../../shared/types.js';
+import { BrainBase } from '../brain-base.js';
+import type { RouterConfig } from '../types.js';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';

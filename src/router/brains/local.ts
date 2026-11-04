@@ -1,7 +1,7 @@
-import type { RoutingDecision, RoutingRequest, TaskResult } from '../shared/types.js';
-import { BrainBase } from '../router/brain-base.js';
-import type { RouterConfig, TaskComplexity } from '../router/types.js';
-import { classifyTask } from '../router/types.js';
+import type { RoutingDecision, RoutingRequest, TaskResult } from '../../shared/types.js';
+import { BrainBase } from '../brain-base.js';
+import type { RouterConfig, TaskComplexity } from '../types.js';
+import { classifyTask } from '../types.js';
 
 interface OllamaChatRequest {
   model: string;

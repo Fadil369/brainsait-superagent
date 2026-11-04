@@ -12,6 +12,7 @@
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Router } from '../src/router/index.js';
 import { DEFAULT_ROUTER_CONFIG } from '../src/router/types.js';
 import type { BrainType } from '../src/shared/types.js';
