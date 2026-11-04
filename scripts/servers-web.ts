@@ -17,6 +17,7 @@ import { build as esbuild } from 'esbuild';
 import { Router } from '../src/router/index.js';
 import { DEFAULT_ROUTER_CONFIG } from '../src/router/types.js';
 import type { BrainType } from '../src/shared/types.js';
+import { memory } from '../src/memory/store.js';
 
 const PORT = 3083;
 const DSH_API = 'http://127.0.0.1:3082';
@@ -222,11 +223,53 @@ const server = createServer(async (req, res) => {
       { id: 'cloud', name: 'AI Gateway', model: config.cloud.models.primary, enabled: config.cloud.enabled },
       { id: 'gpu', name: 'GPU (Brev)', model: config.gpu.agentPool, enabled: config.gpu.enabled !== false },
       { id: 'nim', name: 'NVIDIA NIM', model: 'nvidia-nim', enabled: !!process.env.NVIDIA_API_KEY || existsSync(`${process.env.HOME}/.secrets/nvidia-api-key`) },
-      { id: 'nim-local', name: 'Local NIM (Docker)', model: 'nvcr.io/nim', enabled: !!process.env.NVIDIA_API_KEY || existsSync(`${process.env.HOME}/.secrets/nvidia-api-key`) },
+      { id: 'nim-local', name: 'Local NIM (Docker)', model: 'nvcr.io/nim', enabled: process.env.NIM_LOCAL_ENABLED === 'true' },
       { id: 'runai', name: 'Run:ai MCP', model: 'runai', enabled: !!process.env.RUNAI_BASE_URL },
     ].map(b => ({ ...b, online: pings[b.id as BrainType] ?? false }));
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ brains, pings }));
+    return;
+  }
+
+  // Persistent memory
+  if (pathname === '/api/memory/stats') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(memory().stats()));
+    return;
+  }
+
+  if (pathname === '/api/memory/recent') {
+    const chatId = url.searchParams.get('chat_id') ?? undefined;
+    const limit = Number(url.searchParams.get('limit') ?? 20);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ messages: memory().recent(chatId, limit) }));
+    return;
+  }
+
+  if (pathname === '/api/memory/search') {
+    const q = url.searchParams.get('q') ?? '';
+    const chatId = url.searchParams.get('chat_id') ?? undefined;
+    const limit = Number(url.searchParams.get('limit') ?? 10);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ query: q, messages: q ? memory().recall(q, limit, chatId) : [] }));
+    return;
+  }
+
+  if (pathname === '/api/memory/facts' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { key, value } = JSON.parse(body) as { key?: string; value?: string };
+        if (!key || !value) throw new Error('key and value are required');
+        memory().addFact(key, value);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, key, value }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : 'Bad request' }));
+      }
+    });
     return;
   }
 

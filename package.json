@@ -12,7 +12,9 @@
     "dev": "tsx watch src/index.ts",
     "check": "tsc --noEmit && eslint src/",
     "lint": "eslint src/",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "lark": "tsx src/lark/server.ts",
+    "memory": "tsx -e \"import {memory} from './src/memory/store.ts'; console.log(memory().stats())\""
   },
   "dependencies": {
     "@types/react": "^19.3.0",
