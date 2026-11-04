@@ -4,8 +4,8 @@
  * Adapted from @deepseek-ai/dsh-agent for standalone compilation.
  */
 import type { z } from 'zod'
-import type { OutboundMessage, ChannelRef, Trigger, ThreadFact } from './core-types.ts'
-import type { SourceContext } from './host.ts'
+import type { OutboundMessage, ChannelRef, Trigger, ThreadFact } from './core-types.js'
+import type { SourceContext } from './host.js'
 
 /** Localized string pair (zh/en). */
 export interface Localized { zh: string; en: string }
@@ -16,7 +16,7 @@ export type FieldSpec =
   | { key: string; type: 'select'; label: Localized; hint?: Localized; advanced?: true; options: { value: string; label: Localized }[] }
   | { key: string; type: 'number'; label: Localized; hint?: Localized; advanced?: true; min: number; max: number }
   | { key: string; type: 'text'; label: Localized; hint?: Localized; advanced?: true; pattern?: string }
-  | { key: string; type: 'rows'; label: Localized; hint?: Localized; columns: { key: string; label: Localized; type: 'text'; pattern?: string; optional?: boolean }[] }
+  | { key: string; type: 'rows'; label: Localized; hint?: Localized; columns: ({ key: string; label: Localized; type: 'text'; pattern?: string; optional?: boolean } | { key: string; label: Localized; type: 'select'; options: { value: string; label: Localized }[]; optional?: boolean })[] }
 
 /** Outbound messaging adapter for a source kind's threads. */
 export interface SourceChannel {

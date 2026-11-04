@@ -2,7 +2,7 @@ const BASE = '/api';
 
 // ── Type definitions ────────────────────────────────────────────────────────
 
-export type BrainType = 'local' | 'cloud' | 'gpu' | 'nim';
+export type BrainType = 'local' | 'cloud' | 'gpu' | 'nim' | 'nim-local' | 'runai';
 
 export interface LearningEntry {
   timestamp: number;
@@ -83,6 +83,8 @@ export async function getHealth() {
     cloud: boolean;
     gpu?: boolean;
     nim?: boolean;
+    'nim-local'?: boolean;
+    runai?: boolean;
     uptime?: string;
   }>('/health');
 }
@@ -131,4 +133,17 @@ export async function getActivityLog(limit = 100): Promise<ActivityEntry[]> {
 // Config
 export async function getConfig(): Promise<DshConfig> {
   return fetchJson<DshConfig>('/config');
+}
+
+
+export interface BrainInfo {
+  id: BrainType;
+  name: string;
+  model: string;
+  enabled: boolean;
+  online: boolean;
+}
+
+export async function getBrains(): Promise<{ brains: BrainInfo[]; pings: Record<string, boolean> }> {
+  return fetchJson<{ brains: BrainInfo[]; pings: Record<string, boolean> }>('/brains');
 }

@@ -36,7 +36,7 @@ export abstract class BrainBase {
     return this._doRetry(fn, attempts);
   }
 
-  private async _doRetry(fn: () => Promise<T>, remaining: number): Promise<T> {
+  private async _doRetry<T>(fn: () => Promise<T>, remaining: number): Promise<T> {
     try {
       return await fn();
     } catch (err) {

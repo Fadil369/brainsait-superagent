@@ -1,16 +1,17 @@
 /** Lark source kind definition, polling loop, and Cordis plugin entry. */
 import { z } from 'zod'
-import { type SourceContext, health } from './host.ts'
+import { type SourceContext, health } from './host.js'
 import { SOURCE, larkChannel, larkTrigger, larkTriggerId, type LarkEvent, type HistoricalMessage }
-  from './lark-trigger.ts'
-import { larkLink, sendLark } from './lark-channel.ts'
-import { larkThreadContext, larkReadRecent, larkRead, larkReferences, type LarkRef } from './lark-read.ts'
-import type { Localized, SourceKind } from './kind.ts'
+  from './lark-trigger.js'
+import { larkLink, sendLark } from './lark-channel.js'
+import { larkThreadContext, larkReadRecent, larkRead, larkReferences, type LarkRef } from './lark-read.js'
+import type { Localized, SourceKind } from './kind.js'
 
-export { SOURCE, larkChannel, larkTriggerId, larkTrigger } from './lark-trigger.ts'
-export { larkReadRecent, larkRead, larkReferences, larkRead as larkContextRead } from './lark-read.ts'
-export type { LarkEvent, HistoricalMessage, LarkRef } from './lark-read.ts'
-export { larkLink, sendLark } from './lark-channel.ts'
+export { SOURCE, larkChannel, larkTriggerId, larkTrigger } from './lark-trigger.js'
+export { larkReadRecent, larkRead, larkReferences, larkRead as larkContextRead } from './lark-read.js'
+export type { LarkEvent, HistoricalMessage } from './lark-trigger.js'
+export type { LarkRef } from './lark-read.js'
+export { larkLink, sendLark } from './lark-channel.js'
 
 /** Lark source configuration schema. */
 const LarkConfigSchema = z.object({
@@ -21,7 +22,7 @@ const LarkConfigSchema = z.object({
     chatId: z.string().regex(/^oc_[a-zA-Z0-9]+$/),
     name: z.string().trim().max(60).optional(),
     listen: z.enum(['mentions', 'all']).default('mentions'),
-  })).strict().default([]),
+  }).strict()).default([]),
   directMessages: z.boolean().default(true),
   otherChats: z.enum(['none', 'mentions']).default('none'),
 }).strict()
@@ -71,7 +72,7 @@ export const larkKind: SourceKind<LarkConfig> = {
     if (meta.direct === true) return config.directMessages
       ? { listened: true, observed: false, row: 'direct' }
       : { listened: false, reason: 'direct_messages_not_allowed' as const }
-    const chat = config.chats.find(item => item.chatId === meta.chatId)
+    const chat = config.chats.find((item: { chatId: string; listen: 'mentions' | 'all' }) => item.chatId === meta.chatId)
     if (chat) return { listened: true, observed: chat.listen === 'all', row: chat.chatId }
     return config.otherChats === 'mentions'
       ? { listened: true, observed: false, row: 'other' }
@@ -110,7 +111,7 @@ export const larkKind: SourceKind<LarkConfig> = {
       const config = LarkConfigSchema.parse(stored)
       const mentions = { zh: '仅 @', en: '@ only' }
       return [
-        ...config.chats.map(chat => ({
+        ...config.chats.map((chat: { chatId: string; name?: string; listen: 'mentions' | 'all' }) => ({
           id: chat.chatId, label: chat.name || chat.chatId,
           note: chat.listen === 'all' ? { zh: '全部消息', en: 'All' } : mentions,
           cells: { listedUnaddressed: chat.listen === 'all', unlistedAddressed: true, unlistedUnaddressed: chat.listen === 'all' },
@@ -142,7 +143,7 @@ export const larkKind: SourceKind<LarkConfig> = {
 
 /** Returns the Lark Source's settings, falling back to schema defaults. */
 export const larkSettings = (sources: { instance: <T>(k: string) => { config: T } | undefined }): LarkConfig =>
-  sources.instance<SOURCE>(SOURCE)?.config ?? LarkConfigSchema.parse({})
+  sources.instance<LarkConfig>(SOURCE)?.config ?? LarkConfigSchema.parse({})
 
 /** Polling loop: reads new messages from configured chats, emits triggers. */
 export async function runLark(ctx: SourceContext, signal: AbortSignal): Promise<void> {
@@ -181,7 +182,7 @@ export async function runLark(ctx: SourceContext, signal: AbortSignal): Promise<
       continue
     }
 
-    const chatList = [...config.chats.map(c => ({ chatId: c.chatId, direct: false, listen: c.listen }))]
+    const chatList = [...config.chats.map((c: { chatId: string; listen: 'mentions' | 'all' }) => ({ chatId: c.chatId, direct: false, listen: c.listen }))]
 
     // Direct chats discovered via live events.
     const directChats = Object.entries(seenChats)
@@ -203,11 +204,12 @@ export async function runLark(ctx: SourceContext, signal: AbortSignal): Promise<
 
       try {
         const result = await larkReadRecent(ctx.commands, chat.chatId, chat.direct ?? false, since, config.readPageSize)
-        const { larkTrigger: triggerBuilder } = await import('./lark-trigger.ts')
+        const { larkTrigger: triggerBuilder } = await import('./lark-trigger.js')
         const botId = larkBot.botId
         const appId = larkBot.appId
 
-        for (const msg of result.messages) {
+        for (const msgUnknown of result.messages) {
+          const msg = msgUnknown as any
           const event = {
             message_id: msg.message_id, chat_id: chat.chatId,
             chat_type: chat.direct ? 'p2p' : 'group',
@@ -247,7 +249,7 @@ export async function runLark(ctx: SourceContext, signal: AbortSignal): Promise<
 export const name = 'dsh-superagent-lark'
 
 /** Register the Lark source kind and start the polling loop. */
-export function apply(ctx: { orchestrator?: { sources?: { register: (kind: SourceKind) => void } }; effect: (fn: () => Promise<() => void>) => void }): void {
+export function apply(ctx: { orchestrator?: { sources?: { register: (kind: SourceKind<Record<string, unknown>>) => void } }; effect: (fn: () => (() => Promise<void>)) => void; report?: (source: string, health: unknown) => void }): void {
   if (ctx.orchestrator?.sources) {
     ctx.orchestrator.sources.register(larkKind)
   }

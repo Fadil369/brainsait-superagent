@@ -1,15 +1,13 @@
-import type { BrainType, DshConfig } from '../../shared/types.js';
-import type { RouterConfig } from '../types.js';
-import { DEFAULT_ROUTER_CONFIG } from '../types.js';
+import type { BrainType, DshConfig } from '../shared/types.js';
+import type { RouterConfig } from './types.js';
+import { DEFAULT_ROUTER_CONFIG } from './types.js';
 
-export interface GpuBrainConfig {
-  gpu?: DshConfig['gpu'];
-}
+export type GpuBrainConfig = NonNullable<RouterConfig['gpu']>;
 
-import { LocalBrain } from './local.js';
-import { CloudBrain } from './cloud.js';
-import { GpuBrain } from './gpu.js';
-import { RunAIBrain } from './runai.js';
+import { LocalBrain } from './brains/local.js';
+import { CloudBrain } from './brains/cloud.js';
+import { GpuBrain } from './brains/gpu.js';
+import { RunAIBrain } from './brains/runai.js';
 
 type BrainInstance = LocalBrain | CloudBrain | GpuBrain | RunAIBrain;
 
@@ -158,11 +156,11 @@ export class BrainFactory {
   private _createGpu(): GpuBrain | null {
     try {
       const hasGpuKey = !!process.env.BREV_API_KEY;
-      const dshConfig = this._gpuConfig;
-      if (!hasGpuKey && !dshConfig?.gpu?.token) {
+      const gpuConfig = this._gpuConfig;
+      if (!hasGpuKey && !gpuConfig?.token) {
         return null;
       }
-      return new GpuBrain(this._localConfig, dshConfig);
+      return new GpuBrain(this._localConfig, gpuConfig);
     } catch {
       return null;
     }

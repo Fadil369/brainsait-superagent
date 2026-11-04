@@ -10,18 +10,18 @@
  * Uses lark-cli (app credentials from LarkConfig) and sends messages back
  * through the existing `sendLark` / `larkChannel` plumbing in this package.
  */
-import { type LarkConfig } from '../shared/types.ts'
+import { type LarkConfig } from '../shared/types.js'
 import {
   type Trigger,
   type OutboundMessage,
   type ThreadRef,
   type ChannelRef,
-} from './core-types.ts'
+} from './core-types.js'
 import {
   type SourceContext,
-} from './host.ts'
-import { SOURCE, larkTrigger, larkChannel, type LarkEvent } from './lark-trigger.ts'
-import { sendLark } from './lark-channel.ts'
+} from './host.js'
+import { SOURCE, larkTrigger, larkChannel, type LarkEvent } from './lark-trigger.js'
+import { sendLark } from './lark-channel.js'
 
 // ---------------------------------------------------------------------------
 // Types

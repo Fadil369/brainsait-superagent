@@ -7,6 +7,7 @@ interface OllamaChatRequest {
   model: string;
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
   stream?: boolean;
+  think?: boolean;
   options?: Record<string, unknown>;
 }
 
@@ -34,6 +35,7 @@ interface OllamaClassifyRequest {
   prompt: string;
   system?: string;
   stream?: boolean;
+  think?: boolean;
 }
 
 export class LocalBrain extends BrainBase {
@@ -73,7 +75,7 @@ export class LocalBrain extends BrainBase {
     const response = await this.withTimeout(
       this.post<OllamaChatRequest, OllamaChatResponse>(
         '/api/chat',
-        { model: this.model, messages },
+        { model: this.model, messages, think: false, stream: false },
       ),
     );
 
@@ -113,7 +115,7 @@ Return only the category name and a confidence score between 0 and 1, separated 
     const response = await this.withTimeout(
       this.post<OllamaChatRequest, OllamaChatResponse>(
         '/api/chat',
-        { model: this.model, messages },
+        { model: this.model, messages, think: false, stream: false },
       ),
     );
 

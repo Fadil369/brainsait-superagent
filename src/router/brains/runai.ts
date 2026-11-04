@@ -88,6 +88,7 @@ export class RunAIBrain extends BrainBase {
   }
 
   async execute(req: RoutingRequest): Promise<TaskResult> {
+    if (!this.creds) throw new Error('Run:ai credentials missing');
     const startTime = Date.now();
     const { categories } = classifyTask(req.input);
 

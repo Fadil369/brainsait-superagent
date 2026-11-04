@@ -1,6 +1,6 @@
 /** Normalizes Lark messages (live events, chat history, topics) into domain Triggers. */
 import { z } from 'zod'
-import { key, type ChannelRef, type Trigger } from './core-types.ts'
+import { key, type ChannelRef, type Trigger } from './core-types.js'
 
 export const SOURCE = 'lark'
 

@@ -1,14 +1,56 @@
+import { readFileSync } from 'node:fs';
 import type { BrainType, RoutingDecision, RoutingRequest, TaskResult } from '../shared/types.js';
 import { classifyTask, createRouter, type BrainSelection, type TaskComplexity } from './types.js';
 import { SelfLearningSystem } from './learning.js';
 import { LocalBrain } from './brains/local.js';
 import { CloudBrain } from './brains/cloud.js';
+import { GpuBrain } from './brains/gpu.js';
+import { NimBrain } from './brains/nim.js';
+import { NimLocalBrain } from './brains/nim-local.js';
+import { RunAIBrain } from './brains/runai.js';
+import type { BrainBase } from './brain-base.js';
 import type { RouterConfig } from './types.js';
+
+const SCIENTIFIC_KEYWORDS = [
+  'protein', 'dna', 'rna', 'genome', 'genomic', 'sequence', 'codon',
+  'molecule', 'molecular', 'ligand', 'smiles', 'pdb', 'mmcif',
+  'drug', 'docking', 'binding affinity', 'fold', 'folding', 'structure prediction',
+  'bionemo', 'genmol', 'diffdock', 'boltz', 'openfold', 'proteinmpnn', 'evo2',
+  'biomolecular', 'antibody', 'enzyme', 'peptide', 'scaffold',
+];
+
+function detectScientificTask(input: string): boolean {
+  const text = input.toLowerCase();
+  return SCIENTIFIC_KEYWORDS.some(k => text.includes(k));
+}
+
+/** Resolves a secret from env, then ~/.secrets/<name> (plain file). */
+function resolveSecret(envName: string, fileName: string): string {
+  const fromEnv = process.env[envName];
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  const candidates = [
+    `${process.env.HOME}/.secrets/${fileName}`,
+    `${process.env.HOME}/.secrets/${fileName}.env`,
+  ];
+  for (const path of candidates) {
+    try {
+      const value = readFileSync(path, 'utf8').trim();
+      if (value) return value;
+    } catch {
+      // ignore missing secret files
+    }
+  }
+  return '';
+}
 
 export class Router {
   private config: RouterConfig;
   private localBrain: LocalBrain;
   private cloudBrain: CloudBrain;
+  private gpuBrain: GpuBrain;
+  private nimBrain: NimBrain | null;
+  private nimLocalBrain: NimLocalBrain | null;
+  private runaiBrain: RunAIBrain;
   private learning: SelfLearningSystem;
   private selectedBrain: BrainType = 'local';
   private healthCheckHits: number = 0;
@@ -18,7 +60,31 @@ export class Router {
     this.config = createRouter(userConfig);
     this.localBrain = new LocalBrain(this.config.local);
     this.cloudBrain = new CloudBrain(this.config.cloud);
+    this.gpuBrain = new GpuBrain(this.config.local, this.config.gpu);
+    this.runaiBrain = new RunAIBrain(this.config.local);
     this.learning = new SelfLearningSystem(this.config.selfLearning);
+
+    const nimApiKey = this.config.nim?.apiKey
+      || resolveSecret('NVIDIA_API_KEY', 'nvidia-api-key');
+    const nimModels = this.config.nim?.models
+      ?? (process.env.NIM_MODELS ? process.env.NIM_MODELS.split(',').map(s => s.trim()).filter(Boolean) : undefined);
+
+    this.nimBrain = nimApiKey
+      ? new NimBrain({
+          apiKey: nimApiKey,
+          baseUrl: this.config.nim?.baseUrl ?? process.env.NIM_BASE_URL,
+          models: nimModels,
+        })
+      : null;
+
+    const nimLocalEnabled = process.env.NIM_LOCAL_ENABLED === 'true';
+    this.nimLocalBrain = nimApiKey && nimLocalEnabled
+      ? new NimLocalBrain({
+          apiKey: nimApiKey,
+          portBase: this.config.nimLocal?.portBase,
+          models: this.config.nimLocal?.models ?? nimModels,
+        })
+      : null;
 
     if (this.config.manualOverride.enabled && this.config.manualOverride.forceBrain) {
       this.selectedBrain = this.config.manualOverride.forceBrain;
@@ -30,8 +96,18 @@ export class Router {
     return complexity;
   }
 
+  private availableBrains(): BrainType[] {
+    const brains: BrainType[] = ['local', 'cloud'];
+    if (this.nimBrain) brains.push('nim');
+    if (this.nimLocalBrain) brains.push('nim-local');
+    if (this.config.runai?.enabled || process.env.RUNAI_BASE_URL) brains.push('runai');
+    if (this.config.gpu?.enabled !== false) brains.push('gpu');
+    return brains;
+  }
+
   async decide(req: RoutingRequest): Promise<BrainSelection> {
     const { complexity, score, categories } = classifyTask(req.input);
+    const scientific = detectScientificTask(req.input);
 
     if (this.config.manualOverride.enabled && this.config.manualOverride.forceBrain) {
       return {
@@ -43,13 +119,23 @@ export class Router {
       };
     }
 
+    // Scientific / biomedical tasks prefer NIM, then local NIM, then cloud.
+    if (scientific && this.nimBrain) {
+      return {
+        brain: 'nim',
+        confidence: 0.9,
+        fallbackChain: this.buildFallbackChain('nim'),
+        reason: 'Scientific task detected — routed to NVIDIA NIM brain',
+      };
+    }
+
     let selected: BrainType = 'local';
     let model: string | undefined;
     let confidence = 0.8;
     let reason = 'Default to local brain';
 
     const taskType = categories.length > 0 ? categories[0] : complexity;
-    const bestBrainFromLearning = this.learning.getBestBrain(taskType, ['local', 'cloud']);
+    const bestBrainFromLearning = this.learning.getBestBrain(taskType, this.availableBrains());
 
     if (this.learning.shouldAdaptThresholds() && bestBrainFromLearning && bestBrainFromLearning !== 'local') {
       const successRate = this.learning.getSuccessRate(bestBrainFromLearning, taskType);
@@ -148,7 +234,6 @@ export class Router {
     }
 
     if (!result) {
-      const latencyMs = Date.now() - startTime;
       throw lastError ?? new Error('All brains in chain failed');
     }
 
@@ -177,17 +262,53 @@ export class Router {
         const brain = this.cloudBrain;
         return brain.execute(req);
       }
+      case 'gpu': {
+        return this.gpuBrain.execute(req);
+      }
+      case 'nim': {
+        if (!this.nimBrain) throw new Error('NIM brain not configured (missing NVIDIA_API_KEY)');
+        return this.nimBrain.execute(req);
+      }
+      case 'nim-local': {
+        if (!this.nimLocalBrain) throw new Error('Local NIM brain not configured (missing NVIDIA_API_KEY)');
+        return this.nimLocalBrain.execute(req);
+      }
+      case 'runai': {
+        return this.runaiBrain.execute(req);
+      }
       default: {
-        const brain = this.localBrain;
-        return brain.execute(req);
+        return this.localBrain.execute(req);
       }
     }
   }
 
   private buildBrainSequence(primary: BrainType): BrainType[] {
-    if (primary === 'local') return ['local', 'cloud'];
-    if (primary === 'cloud') return ['cloud', 'local'];
-    return ['local', 'cloud'];
+    const available = this.availableBrains();
+    return this.uniq(this.rawSequence(primary))
+      .filter(b => available.includes(b) && this.getBrainInstance(b) !== null);
+  }
+
+  private rawSequence(primary: BrainType): BrainType[] {
+    switch (primary) {
+      case 'local':
+        return this.uniq(['local', 'cloud']);
+      case 'cloud':
+        return this.uniq(['cloud', 'local']);
+      case 'nim':
+        return this.uniq(['nim', 'nim-local', 'runai', 'cloud', 'local']);
+      case 'nim-local':
+        return this.uniq(['nim-local', 'cloud', 'local']);
+      case 'runai':
+        return this.uniq(['runai', 'nim', 'cloud', 'local']);
+      case 'gpu':
+        return this.uniq(['gpu', 'cloud', 'local']);
+      default:
+        return this.uniq(['local', 'cloud']);
+    }
+  }
+
+  private uniq(brains: BrainType[]): BrainType[] {
+    return brains.filter((b, i) => brains.indexOf(b) === i);
   }
 
   private buildFallbackChain(primary: BrainType): BrainType[] {
@@ -198,6 +319,10 @@ export class Router {
     switch (brainType) {
       case 'local': return this.localBrain;
       case 'cloud': return this.cloudBrain;
+      case 'gpu': return this.gpuBrain;
+      case 'nim': return this.nimBrain;
+      case 'nim-local': return this.nimLocalBrain;
+      case 'runai': return this.runaiBrain;
       default: return null;
     }
   }
@@ -225,6 +350,7 @@ export class Router {
   }
 
   private inferTaskType(input: string): string {
+    if (detectScientificTask(input)) return 'scientific';
     const { categories } = classifyTask(input);
     if (categories.length > 0) return categories[0];
     const lower = input.toLowerCase().trim();
@@ -237,9 +363,29 @@ export class Router {
   }
 
   async pingAll(): Promise<Record<BrainType, boolean>> {
-    const local = await this.localBrain.ping();
-    const cloud = await this.cloudBrain.ping();
-    return { local, cloud };
+    const result: Record<BrainType, boolean> = {
+      local: false,
+      cloud: false,
+      gpu: false,
+      nim: false,
+      'nim-local': false,
+      runai: false,
+    };
+
+    await Promise.all([
+      this.localBrain.ping().then(v => { result.local = v; }).catch(() => {}),
+      this.cloudBrain.ping().then(v => { result.cloud = v; }).catch(() => {}),
+      this.gpuBrain.ping().then(v => { result.gpu = v; }).catch(() => {}),
+      this.runaiBrain.ping().then(v => { result.runai = v; }).catch(() => {}),
+      this.nimBrain
+        ? this.nimBrain.ping().then(v => { result.nim = v; }).catch(() => {})
+        : Promise.resolve(),
+      this.nimLocalBrain
+        ? this.nimLocalBrain.ping().then(v => { result['nim-local'] = v; }).catch(() => {})
+        : Promise.resolve(),
+    ]);
+
+    return result;
   }
 
   getConfig(): RouterConfig {

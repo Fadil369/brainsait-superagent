@@ -10,7 +10,7 @@
  */
 
 import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Router } from '../src/router/index.js';
@@ -175,14 +175,31 @@ const server = createServer(async (req, res) => {
 
   // Health
   if (pathname === '/api/health') {
+    const pings = await router.pingAll();
     const health = {
       agentRunning: true,
-      activeBrain: router.getConfig().manualOverride.forceBrain ?? 'local',
-      local: true,
-      cloud: true,
+      activeBrain: router.getConfig().manualOverride.forceBrain ?? 'auto',
+      ...pings,
     };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(health));
+    return;
+  }
+
+  // Brain registry + live status
+  if (pathname === '/api/brains') {
+    const pings = await router.pingAll();
+    const config = router.getConfig();
+    const brains = [
+      { id: 'local', name: 'Local (Ollama)', model: config.local.model, enabled: config.local.enabled },
+      { id: 'cloud', name: 'AI Gateway', model: config.cloud.models.primary, enabled: config.cloud.enabled },
+      { id: 'gpu', name: 'GPU (Brev)', model: config.gpu.agentPool, enabled: config.gpu.enabled !== false },
+      { id: 'nim', name: 'NVIDIA NIM', model: 'nvidia-nim', enabled: !!process.env.NVIDIA_API_KEY || existsSync(`${process.env.HOME}/.secrets/nvidia-api-key`) },
+      { id: 'nim-local', name: 'Local NIM (Docker)', model: 'nvcr.io/nim', enabled: !!process.env.NVIDIA_API_KEY || existsSync(`${process.env.HOME}/.secrets/nvidia-api-key`) },
+      { id: 'runai', name: 'Run:ai MCP', model: 'runai', enabled: !!process.env.RUNAI_BASE_URL },
+    ].map(b => ({ ...b, online: pings[b.id as BrainType] ?? false }));
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ brains, pings }));
     return;
   }
 
@@ -305,8 +322,8 @@ const server = createServer(async (req, res) => {
     const proxyRes = await fetch(proxyUrl, {
       method: req.method,
       headers: {
-        'content-type': req.headers['content-type'],
-        'authorization': req.headers['authorization'],
+        ...(req.headers['content-type'] ? { 'content-type': String(req.headers['content-type']) } : {}),
+        ...(req.headers['authorization'] ? { authorization: String(req.headers['authorization']) } : {}),
         host: new URL(DSH_API).host,
       },
       body,

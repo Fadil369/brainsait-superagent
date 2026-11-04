@@ -55,6 +55,19 @@ export interface RouterConfig {
     token: string;
     agentPool: string;
     agentImage: string;
+    enabled?: boolean;
+  };
+  nim?: {
+    apiKey: string;
+    baseUrl?: string;
+    models?: string[];
+  };
+  nimLocal?: {
+    portBase?: number;
+    models?: string[];
+  };
+  runai?: {
+    enabled: boolean;
   };
   thresholds: {
     complexityScore: {
@@ -82,15 +95,15 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
     enabled: true,
     baseUrl: 'http://localhost:11434',
     model: 'qwen3:8b',
-    timeoutMs: 15000,
-    maxRetries: 2,
+    timeoutMs: 60000,
+    maxRetries: 1,
   },
   cloud: {
     enabled: true,
     gatewayUrl: 'http://100.110.98.65/v1',
-    apiKey: '',
+    apiKey: process.env.DSH_GATEWAY_KEY ?? '',
     models: {
-      primary: 'deepseek/deepseek-v4-flash',
+      primary: 'llama-3.3-70b-instruct-fp8-fast',
       fallback: 'llama-3.3-70b-instruct-fp8-fast',
       premium: 'gpt-5.6-sol',
     },
@@ -215,6 +228,10 @@ export function createRouter(config: Partial<RouterConfig> = {}): RouterConfig {
   return {
     local: { ...DEFAULT_ROUTER_CONFIG.local, ...(config.local ?? {}) },
     cloud: { ...DEFAULT_ROUTER_CONFIG.cloud, ...(config.cloud ?? {}) },
+    gpu: { ...DEFAULT_ROUTER_CONFIG.gpu, ...(config.gpu ?? {}) },
+    ...(config.nim ? { nim: config.nim } : {}),
+    ...(config.nimLocal ? { nimLocal: config.nimLocal } : {}),
+    ...(config.runai ? { runai: config.runai } : {}),
     thresholds: {
       complexityScore: { ...DEFAULT_ROUTER_CONFIG.thresholds.complexityScore, ...(config.thresholds?.complexityScore ?? {}) },
       localHealthThreshold: config.thresholds?.localHealthThreshold ?? DEFAULT_ROUTER_CONFIG.thresholds.localHealthThreshold,

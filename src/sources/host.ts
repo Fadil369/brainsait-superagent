@@ -1,5 +1,5 @@
 /** Minimal Host and Context interfaces connecting Source plugins to the application. */
-import type { ChannelRef, OutboundMessage, Thread, ThreadFact, Trigger } from './core-types.ts'
+import type { ChannelRef, OutboundMessage, Thread, ThreadFact, Trigger } from './core-types.js'
 
 /** Health status reported by a source kind. */
 export interface Health {

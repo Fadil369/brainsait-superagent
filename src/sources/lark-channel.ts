@@ -1,8 +1,10 @@
 /** Lark outbound channel: posts threaded bot replies and constructs chat deep links. */
-import type { OutboundMessage } from './core-types.ts'
-import type { SourceContext } from './host.ts'
-import type { ChannelLink } from './kind.ts'
-import { SOURCE, larkTriggerId } from './lark-trigger.ts'
+import type { OutboundMessage } from './core-types.js'
+import type { SourceContext } from './host.js'
+import type { Localized } from './kind.js'
+
+interface ChannelLink { url: string; label: Localized; triggerId?: string }
+import { SOURCE, larkTriggerId } from './lark-trigger.js'
 
 /** Lark AppLink that opens a chat; used when the message's own link was not delivered with the event. */
 export const larkChatLink = (chatId: string): string =>

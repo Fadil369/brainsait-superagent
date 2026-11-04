@@ -46,7 +46,8 @@ export class CloudBrain extends BrainBase {
 
   constructor(config: RouterConfig['cloud']) {
     super(config.timeoutMs, config.maxRetries);
-    this.gatewayUrl = config.gatewayUrl.replace(/\/+$/, '');
+    const base = config.gatewayUrl.replace(/\/+$/, '');
+    this.gatewayUrl = base.endsWith('/v1') ? base.slice(0, -3) : base;
     this.apiKey = config.apiKey;
     this.models = [
       config.models.primary,
@@ -144,18 +145,39 @@ export class CloudBrain extends BrainBase {
     }
   }
 
+  private pingCache: { at: number; ok: boolean } | null = null;
+
   async ping(): Promise<boolean> {
+    if (this.pingCache && Date.now() - this.pingCache.at < 5 * 60_000) {
+      return this.pingCache.ok;
+    }
     try {
       const headers = this.buildHeaders(this.buildAuthHeaders());
+      const model = this.models[0];
+      if (!model) {
+        this.pingCache = { at: Date.now(), ok: false };
+        return false;
+      }
+      // /models is often public while /chat/completions is gated, so probe a real completion.
       const res = await this.withTimeout(
-        this.fetchJson(`${this.gatewayUrl}/v1/models`, {
-          method: 'GET',
+        this.fetchJson(`${this.gatewayUrl}/v1/chat/completions`, {
+          method: 'POST',
           headers,
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+            stream: false,
+          }),
         }),
-        5000,
+        8000,
       );
-      return res.ok;
+      const contentType = res.headers.get('content-type') ?? '';
+      const ok = res.ok && contentType.includes('application/json');
+      this.pingCache = { at: Date.now(), ok };
+      return ok;
     } catch {
+      this.pingCache = { at: Date.now(), ok: false };
       return false;
     }
   }

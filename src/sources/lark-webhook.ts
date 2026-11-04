@@ -10,9 +10,9 @@
  */
 import { createHash } from 'node:crypto'
 
-import type { LarkConfig } from '../shared/types.ts'
-import type { SourceContext } from './host.ts'
-import { larkTrigger, type LarkEvent } from './lark-trigger.ts'
+import type { LarkConfig } from '../shared/types.js'
+import type { SourceContext } from './host.js'
+import { larkTrigger, type LarkEvent } from './lark-trigger.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -268,7 +268,7 @@ function createWebhookHandler(
  * Runs on port 3084 by default (configurable).
  *
  * Usage:
- *   import { startWebhookServer } from './sources/lark-webhook.ts'
+ *   import { startWebhookServer } from './sources/lark-webhook.js'
  *   startWebhookServer(config, host, { port: 3084 })
  */
 export interface WebhookServerOptions {

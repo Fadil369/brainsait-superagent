@@ -15,50 +15,26 @@ export interface NimModel {
 }
 
 export const NIM_MODELS: NimModel[] = [
-  // BioNeMo — drug discovery
   {
-    id: 'ai-nemo/genmol',
-    name: 'GenMol',
+    id: 'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+    name: 'Nemotron Ultra 253B',
     category: 'drug-discovery',
-    endpoint: '/generation/v1/generation',
-    description: 'De novo molecular generation from SAFE notation',
+    endpoint: '/chat/completions',
+    description: 'Frontier scientific reasoning for molecular and drug-discovery tasks',
   },
   {
-    id: 'jbaydar/diffdock',
-    name: 'DiffDock',
-    category: 'drug-discovery',
-    endpoint: '/generation/v1/generation',
-    description: 'Molecular docking — predicts ligand binding poses',
-  },
-  {
-    id: 'ibm/boltz1',
-    name: 'Boltz2',
-    category: 'drug-discovery',
-    endpoint: '/generation/v1/generation',
-    description: 'Binding affinity prediction with confidence scoring',
-  },
-  // Protein structure
-  {
-    id: 'ibm/openfold3',
-    name: 'OpenFold3',
+    id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    name: 'Nemotron 70B',
     category: 'protein',
-    endpoint: '/generation/v1/generation',
-    description: 'Biomolecular structure prediction (protein complexes)',
+    endpoint: '/chat/completions',
+    description: 'Protein, structural biology and general scientific analysis',
   },
   {
-    id: 'ibm/proteinmpnn',
-    name: 'ProteinMPNN',
-    category: 'protein',
-    endpoint: '/generation/v1/generation',
-    description: 'Inverse folding — protein sequence design from backbone',
-  },
-  // Genomics
-  {
-    id: 'meta/evo2',
-    name: 'Evo2',
+    id: 'deepseek-ai/deepseek-v4.1-flash',
+    name: 'DeepSeek V4.1 Flash',
     category: 'genomics',
-    endpoint: '/generation/v1/generation',
-    description: 'DNA sequence generation and latent-space sampling',
+    endpoint: '/chat/completions',
+    description: 'Fast genomics and sequence analysis reasoning',
   },
 ];
 
@@ -135,6 +111,7 @@ export class NimBrain extends BrainBase {
   private models: NimModel[];
   private _modelIds: string[];
   private modelIndex: number;
+  private pingCache: { at: number; ok: boolean } | null = null;
 
   constructor(config: NimBrainConfig) {
     super(config.timeoutMs ?? 30000, config.maxRetries ?? 3);
@@ -144,7 +121,13 @@ export class NimBrain extends BrainBase {
 
     const selected = config.models;
     if (selected && selected.length > 0) {
-      this.models = NIM_MODELS.filter(m => selected.includes(m.id));
+      this.models = selected.map(id => NIM_MODELS.find(m => m.id === id) ?? {
+        id,
+        name: id,
+        category: 'protein' as const,
+        endpoint: '/chat/completions',
+        description: id,
+      });
     } else {
       this.models = [...NIM_MODELS];
     }
@@ -378,6 +361,9 @@ export class NimBrain extends BrainBase {
   // -- health ----------------------------------------------------------------
 
   async ping(): Promise<boolean> {
+    if (this.pingCache && Date.now() - this.pingCache.at < 5 * 60_000) {
+      return this.pingCache.ok;
+    }
     try {
       const res = await this.withTimeout(
         fetch(`${this.baseUrl}/models`, {
@@ -386,8 +372,34 @@ export class NimBrain extends BrainBase {
         }),
         5000,
       );
-      return res.ok;
+      if (!res.ok) {
+        this.pingCache = { at: Date.now(), ok: false };
+        return false;
+      }
+      // /models can list models the account is not entitled to; probe one cheaply.
+      const model = this._modelIds[0];
+      if (!model) {
+        this.pingCache = { at: Date.now(), ok: false };
+        return false;
+      }
+      const probe = await this.withTimeout(
+        fetch(`${this.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: this.buildHeaders(this.authHeaders()),
+          body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: 'ping' }],
+            max_tokens: 1,
+            stream: false,
+          }),
+        }),
+        8000,
+      );
+      const ok = probe.ok;
+      this.pingCache = { at: Date.now(), ok };
+      return ok;
     } catch {
+      this.pingCache = { at: Date.now(), ok: false };
       return false;
     }
   }

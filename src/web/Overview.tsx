@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { getHealth, getLearningStats, getTickets, getActivityLog, getConfig } from './api';
-import type { LearningStats, Ticket, ActivityEntry, DshConfig, RouterConfig } from './api';
+import { getHealth, getLearningStats, getTickets, getActivityLog, getConfig, getBrains } from './api';
+import type { LearningStats, Ticket, ActivityEntry, DshConfig, RouterConfig, BrainInfo } from './api';
 
 interface HealthStatus {
   agentRunning: boolean;
@@ -9,6 +9,8 @@ interface HealthStatus {
   cloud: boolean;
   gpu?: boolean;
   nim?: boolean;
+  'nim-local'?: boolean;
+  runai?: boolean;
   uptime?: string;
 }
 
@@ -19,19 +21,21 @@ export default function Overview() {
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [config, setConfig] = useState<DshConfig | null>(null);
   const [routerConfig, setRouterConfig] = useState<RouterConfig | null>(null);
+  const [brains, setBrains] = useState<BrainInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       setError(null);
-      const [h, s, t, a, c, rc] = await Promise.all([
+      const [h, s, t, a, c, rc, b] = await Promise.all([
         getHealth(),
         getLearningStats(),
         getTickets(5),
         getActivityLog(10),
         getConfig(),
         getRouterConfig(),
+        getBrains(),
       ]);
       setHealth(h);
       setStats(s);
@@ -39,6 +43,7 @@ export default function Overview() {
       setActivities(a);
       setConfig(c);
       setRouterConfig(rc);
+      setBrains(b.brains);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch');
     } finally {
@@ -90,18 +95,25 @@ export default function Overview() {
       {/* Brains health */}
       <div className="bg-surface2 border border-border rounded-lg p-5">
         <h3 className="text-sm font-medium text-gray-300 mb-4">Brains Health</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {(['local', 'cloud', 'gpu', 'nim'] as const).map(brain => {
-            const available = health?.[brain] ?? false;
-            const cfg = config?.[brain] as { enabled?: boolean } | undefined;
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {(brains.length > 0 ? brains : [
+            { id: 'local', name: 'Local (Ollama)', model: '', enabled: true, online: health?.local ?? false },
+            { id: 'cloud', name: 'AI Gateway', model: '', enabled: true, online: health?.cloud ?? false },
+            { id: 'gpu', name: 'GPU (Brev)', model: '', enabled: true, online: health?.gpu ?? false },
+            { id: 'nim', name: 'NVIDIA NIM', model: '', enabled: true, online: health?.nim ?? false },
+            { id: 'nim-local', name: 'Local NIM', model: '', enabled: true, online: health?.['nim-local'] ?? false },
+            { id: 'runai', name: 'Run:ai MCP', model: '', enabled: true, online: health?.runai ?? false },
+          ] as BrainInfo[]).map(brain => {
+            const available = brain.online;
             return (
-              <div key={brain} className={`rounded-lg p-3 border ${available ? 'border-success/30 bg-success/5' : 'border-border bg-surface2'}`}>
+              <div key={brain.id} className={`rounded-lg p-3 border ${available ? 'border-success/30 bg-success/5' : 'border-border bg-surface2'}`}>
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${available ? 'bg-success' : 'bg-gray-600'}`} />
-                  <span className="text-sm font-medium text-gray-300 capitalize">{brain}</span>
+                  <span className="text-sm font-medium text-gray-300">{brain.name}</span>
                 </div>
+                <div className="text-[11px] text-gray-500 mt-1 truncate">{brain.model || brain.id}</div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {cfg?.enabled === false ? 'Disabled' : available ? 'Healthy' : 'Offline'}
+                  {brain.enabled === false ? 'Disabled' : available ? 'Healthy' : 'Offline'}
                 </div>
               </div>
             );

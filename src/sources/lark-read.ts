@@ -1,13 +1,13 @@
 /** Lark context reader; retrieved messages are returned for model inspection without entering intake. */
 import { z } from 'zod'
-import type { Trigger } from './core-types.ts'
-import type { SourceContext } from './host.ts'
-import type { ContextMessage, ContextPart, ThreadContext } from './kind.ts'
+import type { Trigger } from './core-types.js'
+import type { SourceContext } from './host.js'
+import type { ContextMessage, ContextPart, ThreadContext } from './kind.js'
 import {
   larkTime, withMentionNames, larkText, topicEvent,
   HistoricalMessageSchema, HistoryPageSchema, type HistoricalMessage, type TopicMessage,
-} from './lark-trigger.ts'
-import { SOURCE } from './lark-trigger.ts'
+} from './lark-trigger.js'
+import { SOURCE, larkRef } from './lark-trigger.js'
 
 /** Retained source message reference anchoring context reads. */
 export interface LarkRef { triggerId: string; chatId: string; messageId: string; at?: string }
@@ -81,7 +81,7 @@ export async function readLark(
     message_id: z.string(), chat_id: z.string(), content: z.string().optional(),
     sender: z.object({ id: z.string(), sender_type: z.string() }),
     create_time: z.string(), mentions: z.array(z.object({ id: z.string(), name: z.string().optional(), key: z.string().optional() })).optional(),
-    message_app_link: z.string().optional(), parent_id: z.string().optional(),
+    message_app_link: z.string().optional(), parent_id: z.string().optional(), deleted: z.boolean().optional(),
   })) }).parse(await commands.lark(['im', '+messages-mget', '--message-ids', target, '--no-reactions']))
   const message = result.messages.find(m => m.message_id === target)
   if (!message) throw new Error('The requested Lark message is unavailable')
@@ -110,7 +110,7 @@ async function chatAround(commands: SourceContext['commands'], ref: LarkRef, cur
   const seen = new Set<string>()
   const messages = [...earlier.items.reverse(), ...later]
     .filter((item: any) => !seen.has(item.message_id) && seen.add(item.message_id))
-    .map((msg: HistoricalMessage) => historyView(msg))
+    .map((msg: unknown) => historyView(msg as HistoricalMessage))
 
   const more = earlier.has_more && earlier.page_token && earlier.page_token !== cursor
   const next = more ? `lark/${ref.triggerId}/around/${encodeURIComponent(earlier.page_token!)}` : null
@@ -192,7 +192,7 @@ export async function larkReadRecent(
   )
   const messages = result.items.filter((item: any) => item.chat_id === chatId && !item.deleted)
 
-  return { messages, next: result.has_more ? result.page_token : undefined }
+  return { messages: messages as Record<string, unknown>[], next: result.has_more ? result.page_token : undefined }
 }
 
 /** Polls for new messages in a chat, returning only triggers newer than `since`. */

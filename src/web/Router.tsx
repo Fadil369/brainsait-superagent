@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getLearningStats, getRouterConfig, setManualOverride } from './api';
 import type { LearningStats, RouterConfig } from './api';
 
-type BrainType = 'local' | 'cloud' | 'gpu' | 'nim';
+type BrainType = 'local' | 'cloud' | 'gpu' | 'nim' | 'nim-local' | 'runai';
 
 export default function Router() {
   const [stats, setStats] = useState<LearningStats | null>(null);
@@ -62,7 +62,7 @@ export default function Router() {
         <h3 className="text-sm font-medium text-gray-300 mb-3">Manual Override</h3>
         <p className="text-xs text-gray-500 mb-3">Force the router to use a specific brain for all tasks.</p>
         <div className="flex flex-wrap gap-2">
-          {[null, 'local', 'cloud', 'gpu', 'nim' as BrainType].map(b => (
+          {[null, 'local', 'cloud', 'gpu', 'nim', 'nim-local', 'runai' as BrainType].map(b => (
             <button
               key={b ?? 'none'}
               onClick={() => handleOverride(b)}
@@ -73,7 +73,7 @@ export default function Router() {
                   : 'bg-surface3 text-gray-400 border border-border hover:text-gray-200'}
                 ${!config?.manualOverride?.enabled ? 'opacity-40 cursor-not-allowed' : ''}`}
             >
-              {b === null ? 'Auto' : b.toUpperCase()}
+              {b === null ? 'Auto' : b === 'nim-local' ? 'NIM LOCAL' : b.toUpperCase()}
             </button>
           ))}
         </div>
