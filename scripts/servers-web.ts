@@ -10,9 +10,10 @@
  */
 
 import { createServer } from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build as esbuild } from 'esbuild';
 import { Router } from '../src/router/index.js';
 import { DEFAULT_ROUTER_CONFIG } from '../src/router/types.js';
 import type { BrainType } from '../src/shared/types.js';
@@ -21,6 +22,32 @@ const PORT = 3083;
 const DSH_API = 'http://127.0.0.1:3082';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WEB_DIR = join(__dirname, '..', 'src', 'web');
+
+// ── Frontend bundle (TSX → browser JS) ────────────────────────────────────
+async function ensureWebBundle(): Promise<void> {
+  const entry = join(WEB_DIR, 'index.tsx');
+  const outfile = join(WEB_DIR, 'app.js');
+  const sources = readdirSync(WEB_DIR)
+    .filter(f => f.endsWith('.tsx') || f.endsWith('.ts'))
+    .map(f => statSync(join(WEB_DIR, f)).mtimeMs);
+  const newestSource = Math.max(0, ...sources);
+  const fresh = existsSync(outfile)
+    && statSync(outfile).mtimeMs >= newestSource;
+  if (fresh) return;
+  await esbuild({
+    entryPoints: [entry],
+    bundle: true,
+    outfile,
+    format: 'iife',
+    platform: 'browser',
+    jsx: 'automatic',
+    minify: true,
+    define: { 'process.env.NODE_ENV': '"production"' },
+    logLevel: 'silent',
+  });
+  console.log('  Web bundle rebuilt → src/web/app.js');
+}
+await ensureWebBundle();
 
 // ── In-memory state (mirrors the live router) ──────────────────────────────
 
@@ -293,7 +320,7 @@ const server = createServer(async (req, res) => {
         dshGateway: 'http://localhost:3082',
         dshKey: '',
         ollama: { baseUrl: 'http://localhost:11434', model: 'qwen3:8b' },
-        cloud: { gatewayUrl: 'http://100.110.98.65/v1', apiKey: '' },
+        cloud: { gatewayUrl: 'http://100.86.164.23', apiBase: '', apiKey: '' },
         gpu: { baseUrl: 'https://api.run.ai', token: '', agentPool: '', agentImage: 'nvidia/nemo:latest' },
         nim: { baseUrl: 'https://ai.api.nvidia.com', apiKey: '' },
       },

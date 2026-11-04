@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { getHealth, getLearningStats, getTickets, getActivityLog, getConfig, getBrains } from './api';
+import { getHealth, getLearningStats, getTickets, getActivityLog, getConfig, getRouterConfig, getBrains } from './api';
 import type { LearningStats, Ticket, ActivityEntry, DshConfig, RouterConfig, BrainInfo } from './api';
 
 interface HealthStatus {

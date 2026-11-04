@@ -28,3 +28,6 @@ Thumbs.db
 # Misc
 .cache/
 *.tsbuildinfo
+
+# generated web bundle
+src/web/app.js

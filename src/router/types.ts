@@ -41,6 +41,7 @@ export interface RouterConfig {
   cloud: {
     enabled: boolean;
     gatewayUrl: string;
+    apiBase?: string;
     apiKey: string;
     models: {
       primary: string;
@@ -100,15 +101,16 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
   },
   cloud: {
     enabled: true,
-    gatewayUrl: 'http://100.110.98.65/v1',
+    gatewayUrl: process.env.CLOUD_GATEWAY_URL ?? 'http://100.86.164.23',
+    apiBase: process.env.CLOUD_API_BASE ?? '',
     apiKey: process.env.DSH_GATEWAY_KEY ?? '',
     models: {
-      primary: 'llama-3.3-70b-instruct-fp8-fast',
-      fallback: 'llama-3.3-70b-instruct-fp8-fast',
-      premium: 'gpt-5.6-sol',
+      primary: process.env.CLOUD_MODEL_PRIMARY ?? 'Qwen/Qwen3.6-35B-A3B-FP8',
+      fallback: process.env.CLOUD_MODEL_FALLBACK ?? 'Qwen/Qwen3.8-27B',
+      premium: process.env.CLOUD_MODEL_PREMIUM ?? 'Qwen/Qwen3.6-35B-A3B-FP8',
     },
-    timeoutMs: 30000,
-    maxRetries: 3,
+    timeoutMs: 90000,
+    maxRetries: 2,
   },
   gpu: {
     baseUrl: 'http://localhost:8000',
@@ -142,7 +144,9 @@ const HIGH_COMPLEXITY_KEYWORDS = [
   'architecture', 'design pattern', 'complex', 'difficult',
   'deep analysis', 'root cause', 'optimization', 'benchmark',
   'profiling', 'memory leak', 'race condition', 'concurrency',
-  'distributed system', 'microservices', 'kubernetes', 'cluster',
+  'distributed system', 'distributed', 'microservices', 'kubernetes', 'cluster',
+  'design', 'rate limit', 'scalab', 'high load', 'throughput', 'latency',
+  'fault toleran', 'consistency', 'multi-tenant', 'backpressure',
   'security audit', 'vulnerability', 'exploit', 'cryptography',
   'transformer', 'attention mechanism', 'neural network',
   'fine-tune', 'pre-train', 'reinforcement learning',
@@ -168,6 +172,12 @@ const LOW_COMPLEXITY_KEYWORDS = [
   'list', 'show', 'print', 'echo',
 ];
 
+function matchesKeyword(text: string, keyword: string): boolean {
+  if (keyword.includes(' ')) return text.includes(keyword);
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`).test(text);
+}
+
 export function classifyTask(input: string): { complexity: TaskComplexity; score: number; categories: string[] } {
   const text = input.toLowerCase().trim();
   const words = text.split(/\s+/);
@@ -176,21 +186,21 @@ export function classifyTask(input: string): { complexity: TaskComplexity; score
   let score = 0;
 
   for (const keyword of HIGH_COMPLEXITY_KEYWORDS) {
-    if (text.includes(keyword)) {
+    if (matchesKeyword(text, keyword)) {
       score += 0.15;
       categories.push(keyword);
     }
   }
 
   for (const keyword of MEDIUM_COMPLEXITY_KEYWORDS) {
-    if (text.includes(keyword)) {
+    if (matchesKeyword(text, keyword)) {
       score += 0.08;
       categories.push(keyword);
     }
   }
 
   for (const keyword of LOW_COMPLEXITY_KEYWORDS) {
-    if (text.includes(keyword)) {
+    if (matchesKeyword(text, keyword)) {
       score -= 0.05;
       categories.push(keyword);
     }
@@ -200,7 +210,8 @@ export function classifyTask(input: string): { complexity: TaskComplexity; score
   if (text.length > 1000) score += 0.15;
   if (text.includes('code') || text.includes('function') || text.includes('class')) score += 0.05;
   if (text.includes('error') || text.includes('bug') || text.includes('crash')) score += 0.05;
-  if (words.length > 50) score += 0.05;
+  if (words.length > 20) score += 0.1;
+  if (words.length > 50) score += 0.1;
 
   score = Math.max(0, Math.min(1, score));
 

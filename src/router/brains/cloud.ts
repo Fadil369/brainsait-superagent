@@ -40,6 +40,7 @@ interface OpenAIModelsResponse {
 export class CloudBrain extends BrainBase {
   readonly name: 'cloud' = 'cloud';
   private gatewayUrl: string;
+  private apiBase: string;
   private apiKey: string;
   private models: string[];
   private modelIndex: number;
@@ -47,7 +48,16 @@ export class CloudBrain extends BrainBase {
   constructor(config: RouterConfig['cloud']) {
     super(config.timeoutMs, config.maxRetries);
     const base = config.gatewayUrl.replace(/\/+$/, '');
-    this.gatewayUrl = base.endsWith('/v1') ? base.slice(0, -3) : base;
+    if (config.apiBase !== undefined) {
+      this.gatewayUrl = base;
+      this.apiBase = config.apiBase.replace(/\/+$/, '');
+    } else if (base.endsWith('/v1')) {
+      this.gatewayUrl = base.slice(0, -3);
+      this.apiBase = '/v1';
+    } else {
+      this.gatewayUrl = base;
+      this.apiBase = '/v1';
+    }
     this.apiKey = config.apiKey;
     this.models = [
       config.models.primary,
@@ -78,11 +88,11 @@ export class CloudBrain extends BrainBase {
       messages,
       stream: false,
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 8192,
     };
 
     const headers = this.buildHeaders(this.buildAuthHeaders());
-    const res = await this.fetchJson(`${this.gatewayUrl}/v1/chat/completions`, {
+    const res = await this.fetchJson(`${this.gatewayUrl}${this.apiBase}/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -103,8 +113,10 @@ export class CloudBrain extends BrainBase {
       const model = this.models[attempt];
       try {
         const response = await this.withTimeout(this.chat(model, messages));
-        const choice = response.choices?.[0]?.message;
-        const output = choice?.content ?? '';
+        const choice = response.choices?.[0]?.message as
+          | { content?: string | null; reasoning?: string | null }
+          | undefined;
+        const output = choice?.content || choice?.reasoning || '';
         const latencyMs = Date.now() - startTime;
         const tokensUsed = response.usage?.total_tokens;
 
@@ -136,7 +148,7 @@ export class CloudBrain extends BrainBase {
     try {
       const headers = this.buildHeaders(this.buildAuthHeaders());
       const res = await this.withTimeout(
-        this.fetchJson(`${this.gatewayUrl}/v1/models`, { method: 'GET', headers }),
+        this.fetchJson(`${this.gatewayUrl}${this.apiBase}/models`, { method: 'GET', headers }),
       );
       const data = await res.json() as OpenAIModelsResponse;
       return data.data?.map(m => m.id) ?? [];
@@ -160,7 +172,7 @@ export class CloudBrain extends BrainBase {
       }
       // /models is often public while /chat/completions is gated, so probe a real completion.
       const res = await this.withTimeout(
-        this.fetchJson(`${this.gatewayUrl}/v1/chat/completions`, {
+        this.fetchJson(`${this.gatewayUrl}${this.apiBase}/chat/completions`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
@@ -170,7 +182,7 @@ export class CloudBrain extends BrainBase {
             stream: false,
           }),
         }),
-        8000,
+        20000,
       );
       const contentType = res.headers.get('content-type') ?? '';
       const ok = res.ok && contentType.includes('application/json');

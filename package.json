@@ -15,6 +15,11 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "yaml": "^2.7.0",
     "zod": "^4.6.7"
   },
