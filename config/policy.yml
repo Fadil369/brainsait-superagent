@@ -1,0 +1,16 @@
+# brainsait-superagent authorization policy
+allowedUsers:
+  - Fadil369
+
+allowedRepos:
+  - Fadil369/brainsait-superagent
+
+# PR review: auto-merge when confidence exceeds the threshold
+prReview:
+  autoMerge:
+    confidenceThreshold: 90
+
+# Escalation: route to GPU brain when local brain confidence drops
+escalation:
+  lowConfidenceThreshold: 50
+  target: gpu-brain

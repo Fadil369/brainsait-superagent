@@ -1,31 +1,21 @@
-import type {
+export { Router } from './router.js';
+export { BrainBase } from './brain-base.js';
+export { SelfLearningSystem } from './learning.js';
+export { LocalBrain } from './brains/local.js';
+export { CloudBrain } from './brains/cloud.js';
+export {
+  classifyTask,
+  createRouter,
+  DEFAULT_ROUTER_CONFIG,
+  type TaskComplexity,
+  type BrainSelection,
+  type LearningEntry,
+  type LearningStats,
+  type RouterConfig,
+} from './types.js';
+export type {
   BrainType,
   RoutingDecision,
   RoutingRequest,
   TaskResult,
 } from '../shared/types.js';
-
-export interface Brain {
-  readonly name: BrainType;
-
-  ping(): Promise<boolean>;
-  route(req: RoutingRequest): Promise<RoutingDecision>;
-  execute(req: RoutingRequest): Promise<TaskResult>;
-}
-
-export interface Router {
-  register(brain: Brain): void;
-  decide(req: RoutingRequest): Promise<RoutingDecision>;
-  run(req: RoutingRequest): Promise<TaskResult>;
-}
-
-export abstract class AbstractBrain implements Brain {
-  abstract readonly name: BrainType;
-
-  async ping(): Promise<boolean> {
-    return true;
-  }
-
-  abstract route(req: RoutingRequest): Promise<RoutingDecision>;
-  abstract execute(req: RoutingRequest): Promise<TaskResult>;
-}

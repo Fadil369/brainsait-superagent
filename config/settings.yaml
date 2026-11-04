@@ -1,0 +1,37 @@
+# DSH settings for brainsait-superagent — mirrors ~/.dsh/settings.yaml
+# with local-ollama provider added for worker preset.
+
+agent-default-model:
+  provider: ollama
+  model: qwen3:8b
+
+llm-pi-ai:
+  providers:
+    nvidia:
+      displayName: NVIDIA Hosted NIM — Tier 0 ($0)
+      api: openai-completions
+      baseURL: https://integrate.api.nvidia.com/v1
+      apiKeyEnv: NVIDIA_API_KEY
+      models:
+        - id: nvidia/nemotron-3.5-super-vl-120b-a12b
+          name: Nemotron 3.5 Super VL 120B (NVIDIA hosted NIM, $0, vision+reasoning)
+          contextWindow: 128000
+          input:
+            - text
+            - image
+    brainsait-ai:
+      displayName: BrainSAIT AI Gateway (Hetzner)
+      api: openai-completions
+      baseURL: http://100.110.98.65/v1
+      apiKeyEnv: DSH_GATEWAY_KEY
+      models:
+        - id: deepseek/deepseek-v4-flash
+        - id: llama-3.3-70b-instruct-fp8-fast
+        - id: gpt-5.6-sol
+    ollama:
+      displayName: Ollama (Local)
+      api: openai-completions
+      baseURL: http://localhost:11434/v1
+      models:
+        - id: qwen3:8b
+          name: Qwen3 8B (local, fast, worker preset)
