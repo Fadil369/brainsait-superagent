@@ -159,7 +159,7 @@ const server = createServer(async (req, res) => {
   // ── Static files ──
   if (pathname === '/' || pathname === '/index.html') {
     const body = readStatic('index.html');
-    if (body) { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end(body); return; }
+    if (body) { res.writeHead(200, { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }); res.end(body); return; }
   }
 
   const staticFile = readStatic(pathname.slice(1));
@@ -170,7 +170,7 @@ const server = createServer(async (req, res) => {
       '.js': 'text/javascript', '.json': 'application/json',
       '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml',
     };
-    res.writeHead(200, { 'Content-Type': ct[ext] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': ct[ext] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
     res.end(staticFile);
     return;
   }
